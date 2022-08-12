@@ -1,4 +1,5 @@
 const std = @import("std");
+const Sdk = @import("libs/SDL/Sdk.zig");
 
 pub fn build(b: *std.build.Builder) void {
     // Standard target options allows the person running `zig build` to choose
@@ -6,6 +7,7 @@ pub fn build(b: *std.build.Builder) void {
     // means any target is allowed, and the default is native. Other options
     // for restricting supported target set are available.
     const target = b.standardTargetOptions(.{});
+    const sdk = Sdk.init(b);
 
     // Standard release options allow the person running `zig build` to select
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall.
@@ -13,7 +15,17 @@ pub fn build(b: *std.build.Builder) void {
 
     const exe = b.addExecutable("Zig-Dash", "src/main.zig");
     exe.setTarget(target);
+
+    sdk.link(exe, .dynamic);
+
+    exe.addPackage(sdk.getNativePackage("sdl2-native"));
+    exe.addPackage(sdk.getWrapperPackage("sdl2-zig"));
+
     exe.setBuildMode(mode);
+
+    exe.linkSystemLibrary("SDL2");
+    exe.linkSystemLibrary("SDL2_image");
+
     exe.install();
 
     const run_cmd = exe.run();

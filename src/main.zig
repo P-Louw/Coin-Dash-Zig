@@ -1,4 +1,5 @@
 const std = @import("std");
+const SDL = @import("sdl-zig");
 
 pub fn main() anyerror!void {
     // Note that info level log messages are by default printed only in Debug
