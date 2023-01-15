@@ -18,13 +18,22 @@ pub fn build(b: *std.build.Builder) void {
 
     sdk.link(exe, .dynamic);
 
+    //const install_content_step = b.addInstallDirectory(.{
+    //    .source_dir = "./src/assets",
+    //    .install_dir = .{ .custom = "" },
+    //    .install_subdir = "bin/assets", // directory placed in zig-out/
+    //});
+    //exe.step.dependOn(&install_content_step.step);
+
     exe.addPackage(sdk.getNativePackage("sdl2-native"));
     exe.addPackage(sdk.getWrapperPackage("sdl2-zig"));
+    exe.addPackage(sdk.getWrapperPackage("sdl2-ttf"));
 
     exe.setBuildMode(mode);
 
     exe.linkSystemLibrary("SDL2");
     exe.linkSystemLibrary("SDL2_image");
+    exe.linkSystemLibrary("SDL2_ttf");
 
     exe.install();
 
