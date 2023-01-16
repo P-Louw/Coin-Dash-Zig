@@ -80,7 +80,7 @@ pub fn init(ally: std.mem.Allocator) !Self {
         ),
         // Start on the menu state:
         .state = .menu,
-        .gfx = try Gfx.init(),
+        .gfx = try Gfx.init(ally),
         .game_state = GameState{ .menu = Menu.init() },
         .running = true,
         .renderer = undefined,
@@ -97,6 +97,7 @@ pub fn deinit(engine: *Self) !void {
     defer Image.quit();
     defer SDL.ttf.quit();
     try engine.game_state.deinit(engine.renderer);
+    //engine.allocator.destroy(engine.gfx);
     engine.window.destroy();
     engine.renderer.destroy();
 }

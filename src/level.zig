@@ -13,7 +13,7 @@ score: u32,
 health: usize,
 movement: u32 = 10,
 player_entity: GameEntity,
-obstacles: []SDL.Rectangle, //[8]SDL.Rectangle, //std.ArrayList(GameEntity),
+obstacles: std.ArrayList(GameEntity), //[8]SDL.Rectangle, //std.ArrayList(GameEntity),
 pickups: std.ArrayList(GameEntity),
 ally: std.mem.Allocator,
 
@@ -26,58 +26,54 @@ const AnimatedEntity = struct {
     animation_index: usize,
     flipped: bool,
 
-    pub fn init(ally: std.mem.Allocator) !*AnimatedEntity {
+    pub fn init(ally: std.mem.Allocator, anim_name: []const u8) !*AnimatedEntity {
         var self = try ally.create(AnimatedEntity);
         self.* = AnimatedEntity{
             .flipped = false,
-            .animation_name = "idle",
+            .animation_name = anim_name,
             .animation_index = 0,
         };
         return self;
     }
 
-    pub fn next(self: *AnimatedEntity) ![:0]const u8 {
-        // TODO: Use StringHashmap to cut down loc.
-        if (std.mem.eql(u8, self.animation_name, "hurt")) {
-            if ((gfx.player_hurt.len - 1) == self.animation_index) {
+    pub fn setAnimation(self: *AnimatedEntity, name: []const u8) void {
+        self.animation_name = name;
+        self.animation_index = 0;
+    }
+
+    /// Gets next texture or first if at end of animation series, increments or resets current
+    pub fn next(self: *AnimatedEntity, asset_manager: gfx) ![:0]const u8 {
+        // TODO: pull gfx/asset manager from the engine.
+        errdefer std.log.info("ANIM NAME: {s}", .{self.animation_name});
+        if (asset_manager.animations.get(self.animation_name)) |anims| {
+            if ((anims.len - 1) == self.animation_index) {
                 self.animation_index = 0;
-                return gfx.player_hurt[self.animation_index];
-            }
-            self.animation_index += 1;
-            return gfx.player_hurt[self.animation_index];
-        }
-        if (std.mem.eql(u8, self.animation_name, "idle")) {
-            if ((gfx.player_idle.len - 1) == self.animation_index) {
-                self.animation_index = 0;
-                return gfx.player_idle[self.animation_index];
-            }
-            self.animation_index += 1;
-            return gfx.player_idle[self.animation_index];
-        }
-        if (std.mem.eql(u8, self.animation_name, "run")) {
-            if ((gfx.player_run.len - 1) == self.animation_index) {
-                self.animation_index = 0;
-                return gfx.player_run[self.animation_index];
-            }
-            self.animation_index += 1;
-            return gfx.player_run[self.animation_index];
+            } else self.animation_index += 1;
+            return anims[self.animation_index];
         }
         return gfx.AssetError.AssetNotFound;
     }
+    // Get current active texture.
+    //pub fn current() ![:0]const u8{
+    //    if (asset_manager.animations.get(self.animation_name)) |anims| {
+    //        return anims[self.animation_index];
+    //    }
+    //    return gfx.AssetError.AssetNotFound;
+    //}
 };
 
 const TextureData = union(enum) {
     animated: AnimatedEntity,
     static: [:0]const u8,
 
-    pub fn getAnimTexture(self: *TextureData) gfx.AssetError![:0]const u8 {
+    pub fn getAnimTexture(self: *TextureData, resource: gfx) [:0]const u8 {
         switch (self.*) {
             // TODO: draw statics from here.
             TextureData.static => |img| {
                 return img;
             },
             TextureData.animated => |*anim| {
-                return try anim.next();
+                return anim.next(resource) catch unreachable;
             },
         }
     }
@@ -97,22 +93,23 @@ pub fn init(screen_width: u32, screen_height: u32) !Level {
     //
     // Obstacle placement
     //
-    var buf_obs = std.ArrayList(SDL.Rectangle).init(allocator); //try allocator.alloc(GameEntity, 8);
+    var buf_obs = std.ArrayList(GameEntity).init(allocator); //try allocator.alloc(GameEntity, 8);
     var obs_i: usize = 0;
     while (obs_i < 9) : (obs_i += 1) {
-        var a_obj = try allocator.create(SDL.Rectangle);
+        var a_obj = try allocator.create(GameEntity);
         //std.log.info("Setting up a entity", .{});
-        a_obj.* = SDL.Rectangle{
-            .x = rand.intRangeAtMost(c_int, 0, @intCast(c_int, screen_width - 50)),
-            .y = rand.intRangeAtMost(c_int, 0, @intCast(c_int, screen_height - 50)),
+        a_obj.* = GameEntity{
+            .x = rand.intRangeAtMost(u32, 0, screen_width - 50),
+            .y = rand.intRangeAtMost(u32, 0, screen_height - 50),
             .width = 50,
             .height = 50,
+            .appearence = TextureData{
+                .static = gfx.texture_cactus,
+            },
         };
-        for (buf_obs.items) |*item| {
-            while (utils.hasIntersection(a_obj, item)) {
-                a_obj.x = rand.intRangeAtMost(c_int, 0, @intCast(c_int, screen_width - 50));
-                a_obj.y = rand.intRangeAtMost(c_int, 0, @intCast(c_int, screen_height - 50));
-            }
+        while (entityOverlapsOneOf(a_obj, buf_obs.items)) {
+            a_obj.x = rand.intRangeAtMost(u32, 0, screen_width - 50);
+            a_obj.y = rand.intRangeAtMost(u32, 0, screen_height - 50);
         }
         try buf_obs.append(a_obj.*);
     }
@@ -120,33 +117,44 @@ pub fn init(screen_width: u32, screen_height: u32) !Level {
     //
     // Pickup placement
     //
-    var buf_pickup = try std.ArrayList(GameEntity).init(allocator);
+    var buf_pickup = std.ArrayList(GameEntity).init(allocator);
+    var anim_coins = try AnimatedEntity.init(allocator, "coin");
     var pick_i: usize = 0;
     while (pick_i < 5) : (pick_i += 1) {
         var a_pickup = try allocator.create(GameEntity);
         a_pickup.* = GameEntity{
-            .x = rand.intRangeAtMost(c_int, 0, @intCast(c_int, screen_width - 50)),
-            .y = rand.intRangeAtMost(c_int, 0, @intCast(c_int, screen_height - 50)),
+            .x = rand.intRangeAtMost(u32, 0, screen_width - 50),
+            .y = rand.intRangeAtMost(u32, 0, screen_height - 50),
             .width = 50,
             .height = 50,
             .appearence = TextureData{
-                .animated = 
+                .animated = anim_coins.*,
             },
         };
+        // TODO: Extract collision of obstacles and pickups to function or store them together.
+        while (entityOverlapsOneOf(a_pickup, buf_obs.items)) {
+            a_pickup.x = rand.intRangeAtMost(u32, 0, screen_width - 50);
+            a_pickup.y = rand.intRangeAtMost(u32, 0, screen_height - 50);
+        }
+        while (entityOverlapsOneOf(a_pickup, buf_pickup.items)) {
+            a_pickup.x = rand.intRangeAtMost(u32, 0, screen_width - 50);
+            a_pickup.y = rand.intRangeAtMost(u32, 0, screen_height - 50);
+        }
+        try buf_pickup.append(a_pickup.*);
     }
 
     //
     // Player placement
     //
     var new_player = try allocator.create(GameEntity);
-    var anim = try AnimatedEntity.init(allocator);
+    var anim_player = try AnimatedEntity.init(allocator, "player_idle");
     new_player.* = GameEntity{
         .x = rand.intRangeAtMost(u32, 0, screen_width - 50),
         .y = rand.intRangeAtMost(u32, 0, screen_height - 50),
         .width = 50,
         .height = 50,
         .appearence = TextureData{
-            .animated = anim.*,
+            .animated = anim_player.*,
         },
     };
     while (entityOverlapsOneOf(new_player, buf_obs.items)) {
@@ -161,22 +169,28 @@ pub fn init(screen_width: u32, screen_height: u32) !Level {
         .score = 0,
         .health = 100,
         .player_entity = new_player.*,
-        .obstacles = try buf_obs.toOwnedSlice(),
-        .coins = std.ArrayList(GameEntity).init(allocator),
+        .obstacles = buf_obs,
+        .pickups = buf_pickup,
         .ally = allocator,
     };
     return it;
 }
 
-fn entityOverlapsOneOf(placed: *GameEntity, others: []SDL.Rectangle) bool {
+fn entityOverlapsOneOf(placed: *GameEntity, others: []GameEntity) bool {
     var rect = SDL.Rectangle{
         .x = @intCast(c_int, placed.x),
         .y = @intCast(c_int, placed.y),
         .width = @intCast(c_int, placed.width),
         .height = @intCast(c_int, placed.height),
     };
-    for (others) |*obj| {
-        if (utils.hasIntersection(obj, &rect)) {
+    for (others) |obj| {
+        var other = SDL.Rectangle{
+            .x = @intCast(c_int, obj.x),
+            .y = @intCast(c_int, obj.y),
+            .width = @intCast(c_int, obj.width),
+            .height = @intCast(c_int, obj.height),
+        };
+        if (utils.hasIntersection(&other, &rect)) {
             return true;
         }
     }
@@ -188,8 +202,8 @@ pub fn deinit(self: Level, renderer: SDL.Renderer) !void {
     //self.ally.free(self.obstacles);
     // This throws a pointer union access error!?
     //self.ally.destroy(self.player_entity);
-    self.ally.free(self.obstacles);
-    //_ = self;
+    //self.ally.free(self.obstacles);
+    _ = self;
     _ = renderer;
     //self.coins.deinit();
     //self.obstacles.deinit();
@@ -207,29 +221,35 @@ pub fn handleEvents(self: *Level, engine: *GameEngine, event: SDL.Event) !void {
                 },
                 // TODO: Should go to pause.
                 .escape => engine.running = false,
-                else => {},
+                else => {
+                    self.player_entity.appearence.animated.setAnimation("player_idle");
+                },
             }
         },
         .key_down => |key| {
             switch (key.scancode) {
                 .up => {
+                    self.player_entity.appearence.animated.setAnimation("player_run");
                     if (self.player_entity.y < self.movement) {
                         self.player_entity.y = 0;
                     } else self.player_entity.y -= self.movement;
                 },
                 .down => {
+                    self.player_entity.appearence.animated.setAnimation("player_run");
                     //self.player_entity.y =
                     if (self.player_entity.y + self.player_entity.height >= GameEngine.window_height) {
                         self.player_entity.y = GameEngine.window_height - self.player_entity.height;
                     } else self.player_entity.y += self.movement;
                 },
                 .left => {
+                    self.player_entity.appearence.animated.setAnimation("player_run");
                     self.player_entity.appearence.animated.flipped = true;
                     if (self.player_entity.x < self.movement) {
                         self.player_entity.x = 0;
                     } else self.player_entity.x -= self.movement;
                 },
                 .right => {
+                    self.player_entity.appearence.animated.setAnimation("player_run");
                     self.player_entity.appearence.animated.flipped = false;
                     if (self.player_entity.x + self.player_entity.width >= GameEngine.window_width) {
                         self.player_entity.x = GameEngine.window_width - self.player_entity.width;
@@ -245,17 +265,31 @@ pub fn update() !void {}
 
 pub fn draw(level: *Level, engine: *GameEngine) !void {
     try level.drawBackground(engine.*);
-    try level.drawObstacles(engine.*);
+    //try level.drawObstacles(engine.*);
+    try placeItems(engine.*, &level.obstacles);
+    try placeItems(engine.*, &level.pickups);
     try level.drawPlayer(engine.*);
     try level.drawScore(engine);
     engine.renderer.present();
     //try engine.renderer.setColorRGB(0xF7, 0xA4, 0x1D);
 }
 
-fn placePickup() void {}
+fn placeItems(engine: GameEngine, entities: *std.ArrayList(GameEntity)) !void {
+    for (entities.items) |*rect| {
+        const resource = rect.appearence.getAnimTexture(engine.gfx);
+        const open_img = try SDL.image.loadTextureMem(engine.renderer, resource[0..], SDL.image.ImgFormat.png);
+        defer open_img.destroy();
+        try engine.renderer.copy(open_img, SDL.Rectangle{
+            .x = @intCast(c_int, rect.x),
+            .y = @intCast(c_int, rect.y),
+            .width = @intCast(c_int, rect.width),
+            .height = @intCast(c_int, rect.height),
+        }, null);
+    }
+}
 
 fn drawPlayer(self: *Level, engine: GameEngine) !void {
-    const resource = try self.player_entity.appearence.getAnimTexture();
+    const resource = self.player_entity.appearence.getAnimTexture(engine.gfx);
     const img = try SDL.image.loadTextureMem(engine.renderer, resource[0..], SDL.image.ImgFormat.png);
     const flipped = if (self.player_entity.appearence.animated.flipped) SDL.RendererFlip.horizontal else SDL.RendererFlip.none;
     try engine.renderer.copyEx(img, SDL.Rectangle{
@@ -269,8 +303,13 @@ fn drawPlayer(self: *Level, engine: GameEngine) !void {
 fn drawObstacles(self: Level, engine: GameEngine) !void {
     const cactus_img = try SDL.image.loadTextureMem(engine.renderer, gfx.texture_cactus[0..], SDL.image.ImgFormat.png);
     defer cactus_img.destroy();
-    for (self.obstacles) |rect| {
-        try engine.renderer.copy(cactus_img, rect, null);
+    for (self.obstacles.items) |rect| {
+        try engine.renderer.copy(cactus_img, SDL.Rectangle{
+            .x = @intCast(c_int, rect.x),
+            .y = @intCast(c_int, rect.y),
+            .width = @intCast(c_int, rect.width),
+            .height = @intCast(c_int, rect.height),
+        }, null);
     }
 }
 

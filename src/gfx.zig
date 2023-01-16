@@ -34,19 +34,19 @@ pub const AssetError = error{
     AssetNotFound,
 };
 
-pub const player_hurt = [_][:0]const u8{
+pub var player_hurt = [_][:0]const u8{
     @embedFile("./assets/player/hurt/player-hurt-1.png"),
     @embedFile("./assets/player/hurt/player-hurt-2.png"),
 };
 
-pub const player_idle = [_][:0]const u8{
+pub var player_idle = [_][:0]const u8{
     @embedFile("./assets/player/idle/player-idle-1.png"),
     @embedFile("./assets/player/idle/player-idle-2.png"),
     @embedFile("./assets/player/idle/player-idle-3.png"),
     @embedFile("./assets/player/idle/player-idle-4.png"),
 };
 
-pub const player_run = [_][:0]const u8{
+pub var player_run = [_][:0]const u8{
     @embedFile("./assets/player/run/player-run-1.png"),
     @embedFile("./assets/player/run/player-run-2.png"),
     @embedFile("./assets/player/run/player-run-3.png"),
@@ -55,7 +55,7 @@ pub const player_run = [_][:0]const u8{
     @embedFile("./assets/player/run/player-run-6.png"),
 };
 
-pub const coins = [_][:0]const u8{
+pub var coins = [_][:0]const u8{
     @embedFile("./assets/coin/coin-frame-1.png"),
     @embedFile("./assets/coin/coin-frame-2.png"),
     @embedFile("./assets/coin/coin-frame-3.png"),
@@ -71,11 +71,22 @@ pub const coins = [_][:0]const u8{
 
 fontTitle: Ttf.Font,
 fontDialogue: Ttf.Font,
+animations: std.StringHashMap([][:0]const u8),
 
-pub fn init() !Self {
+pub fn init(ally: std.mem.Allocator) !Self {
+    std.log.info("{any}", .{@TypeOf(player_run)});
+    var anims = std.StringHashMap([][:0]const u8).init(ally);
+
+    //anims.putAssumeCapacity("player_hurt", &it.*);
+
+    try anims.put("player_hurt", &player_hurt);
+    try anims.put("player_idle", &player_idle);
+    try anims.put("player_run", &player_run);
+    try anims.put("coin", &coins);
     var gfx = Self{
         .fontTitle = try Ttf.openFontMem(font_Terrablox, true, 46),
         .fontDialogue = try Ttf.openFontMem(font_RubikMedium, true, 12),
+        .animations = anims,
     };
     return gfx;
 }
