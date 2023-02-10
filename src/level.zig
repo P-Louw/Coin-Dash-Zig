@@ -10,12 +10,15 @@ const gfx = @import("gfx.zig");
 const Level = @This();
 
 score: u32,
-health: usize,
-movement: u32 = 10,
+movement: u32 = 50,
+/// Array size of nr possible keysm, bool to show if active.
+keys: [350]bool,
 player_entity: GameEntity,
 obstacles: std.ArrayList(GameEntity), //[8]SDL.Rectangle, //std.ArrayList(GameEntity),
 pickups: std.ArrayList(GameEntity),
 ally: std.mem.Allocator,
+//last_update_time: f64 = 0,
+//last_gfx_time: f64 = 0,
 
 var prng = std.rand.DefaultPrng.init(1042);
 const rand = &prng.random();
@@ -53,13 +56,6 @@ const AnimatedEntity = struct {
         }
         return gfx.AssetError.AssetNotFound;
     }
-    // Get current active texture.
-    //pub fn current() ![:0]const u8{
-    //    if (asset_manager.animations.get(self.animation_name)) |anims| {
-    //        return anims[self.animation_index];
-    //    }
-    //    return gfx.AssetError.AssetNotFound;
-    //}
 };
 
 const TextureData = union(enum) {
@@ -167,11 +163,11 @@ pub fn init(screen_width: u32, screen_height: u32) !Level {
     //
     var it = Level{
         .score = 0,
-        .health = 100,
         .player_entity = new_player.*,
         .obstacles = buf_obs,
         .pickups = buf_pickup,
         .ally = allocator,
+        .keys = [_]bool{false} ** 350,
     };
     return it;
 }
@@ -221,39 +217,35 @@ pub fn handleEvents(self: *Level, engine: *GameEngine, event: SDL.Event) !void {
                 },
                 // TODO: Should go to pause.
                 .escape => engine.running = false,
+                .up, .down, .left, .right => {
+                    self.keys[@enumToInt(key.scancode)] = false;
+                    self.player_entity.appearence.animated.setAnimation("player_idle");
+                },
                 else => {
                     self.player_entity.appearence.animated.setAnimation("player_idle");
                 },
             }
         },
         .key_down => |key| {
+            //if (key.is_repeat) {
+            //    std.log.info("This is a repeat", .{});
+            //    return;
+            //}
+            self.keys[@enumToInt(key.scancode)] = true;
             switch (key.scancode) {
                 .up => {
                     self.player_entity.appearence.animated.setAnimation("player_run");
-                    if (self.player_entity.y < self.movement) {
-                        self.player_entity.y = 0;
-                    } else self.player_entity.y -= self.movement;
                 },
                 .down => {
                     self.player_entity.appearence.animated.setAnimation("player_run");
-                    //self.player_entity.y =
-                    if (self.player_entity.y + self.player_entity.height >= GameEngine.window_height) {
-                        self.player_entity.y = GameEngine.window_height - self.player_entity.height;
-                    } else self.player_entity.y += self.movement;
                 },
                 .left => {
                     self.player_entity.appearence.animated.setAnimation("player_run");
                     self.player_entity.appearence.animated.flipped = true;
-                    if (self.player_entity.x < self.movement) {
-                        self.player_entity.x = 0;
-                    } else self.player_entity.x -= self.movement;
                 },
                 .right => {
                     self.player_entity.appearence.animated.setAnimation("player_run");
                     self.player_entity.appearence.animated.flipped = false;
-                    if (self.player_entity.x + self.player_entity.width >= GameEngine.window_width) {
-                        self.player_entity.x = GameEngine.window_width - self.player_entity.width;
-                    } else self.player_entity.x += self.movement;
                 },
                 else => {},
             }
@@ -261,15 +253,49 @@ pub fn handleEvents(self: *Level, engine: *GameEngine, event: SDL.Event) !void {
         else => {},
     }
 }
-pub fn update() !void {}
+pub fn update(self: *Level, dt: f64) !void {
+    //self.last_update_time += dt;
+    //
+    //if (self.last_update_time < 1.0) return;
+    //var change = @floatToInt(u32, self.last_update_time * @intToFloat(f64, self.movement));
+    //std.log.info("DELTA: {d}", .{dt});
+    //std.log.info("LAST TIME: {d}", .{self.last_update_time});
+    var change = @floatToInt(u32, dt * @intToFloat(f64, self.movement));
+    //std.log.info("CHANGE: {d}", .{change});
+    if (self.keys[@enumToInt(SDL.Scancode.up)]) {
+        //self.keys[@enumToInt(SDL.Scancode.up)] = false;
+        if (self.player_entity.y < self.movement) {
+            self.player_entity.y = 0;
+        } else self.player_entity.y -= change;
+    }
+    if (self.keys[@enumToInt(SDL.Scancode.down)]) {
+        //self.keys[@enumToInt(SDL.Scancode.down)] = false;
+        if (self.player_entity.y + self.player_entity.height >= GameEngine.window_height) {
+            self.player_entity.y = GameEngine.window_height - self.player_entity.height;
+        } else self.player_entity.y += change;
+    }
+    if (self.keys[@enumToInt(SDL.Scancode.left)]) {
+        //self.keys[@enumToInt(SDL.Scancode.left)] = false;
+        if (self.player_entity.x < self.movement) {
+            self.player_entity.x = 0;
+        } else self.player_entity.x -= change;
+    }
+    if (self.keys[@enumToInt(SDL.Scancode.right)]) {
+        //self.keys[@enumToInt(SDL.Scancode.right)] = false;
+        if (self.player_entity.x + self.player_entity.width >= GameEngine.window_width) {
+            self.player_entity.x = GameEngine.window_width - self.player_entity.width;
+        } else self.player_entity.x += change;
+    }
+    //self.last_update_time = 0.0;
+}
 
-pub fn draw(level: *Level, engine: *GameEngine) !void {
-    try level.drawBackground(engine.*);
+pub fn draw(self: *Level, engine: *GameEngine) !void {
+    try self.drawBackground(engine.*);
     //try level.drawObstacles(engine.*);
-    try placeItems(engine.*, &level.obstacles);
-    try placeItems(engine.*, &level.pickups);
-    try level.drawPlayer(engine.*);
-    try level.drawScore(engine);
+    try placeItems(engine.*, &self.obstacles);
+    try placeItems(engine.*, &self.pickups);
+    try self.drawPlayer(engine.*);
+    try self.drawScore(engine);
     engine.renderer.present();
     //try engine.renderer.setColorRGB(0xF7, 0xA4, 0x1D);
 }

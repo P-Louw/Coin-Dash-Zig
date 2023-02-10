@@ -1,5 +1,6 @@
 const std = @import("std");
 const SDL = @import("sdl2-zig");
+const SDLC = @import("sdl2-native");
 const Image = SDL.image;
 const GameEngine = @import("engine.zig");
 
@@ -13,17 +14,35 @@ pub fn main() anyerror!void {
         const leaked = gpa.deinit();
         if (leaked) @panic("Memory leak :(");
     }
+    var now: u64 = 0;
+    var last: u64 = SDL.getPerformanceFrequency() / SDL.getPerformanceFrequency();
     var engine = try GameEngine.init(gpa.allocator());
-    // Note that info level log messages are by default printed only in Debug
-    // and ReleaseSafe build modes.
     std.log.info("Zig dash!", .{});
     while (engine.running) {
-        //std.log.info("WHILE TRUUUU", .{});
+        //now = SDL.getPerformanceCounter();
+        //std.log.info("LAST: {d}", .{last});
+        //std.log.info("CURRENT: {d}", .{now});
+        //var dt = @intToFloat(f64, (now - last * 1000) / SDL.getPerformanceFrequency()) * 0.0001;
+        //last = now;
+        //std.log.info("FINAL DT: {d}", .{dt});
+        //while (SDL.pollEvent()) |ev| {
+        //    try engine.handleEvents(ev);
+        //}
+        //try engine.update(dt);
+        //try engine.draw();
+        //last = 0;
+
         while (SDL.pollEvent()) |ev| {
-            //std.log.info("Current event: {s}", .{@tagName(ev)});
             try engine.handleEvents(ev);
         }
+        now = SDL.getPerformanceCounter() / SDL.getPerformanceFrequency();
+        std.log.info("LAST: {d}\nNOW:{d}", .{ last, now });
+        var floated: u64 = (now - last) * 1000;
+        var dt = @intToFloat(f64, floated) * 0.0001;
+        try engine.update(dt);
         try engine.draw();
+        last = now;
+        SDL.delay(16);
     }
     try engine.deinit();
 }

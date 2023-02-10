@@ -61,7 +61,10 @@ pub fn handleEvents(self: Self, engine: *GameEngine, event: SDL.Event) !void {
         else => {},
     }
 }
-pub fn update() !void {}
+pub fn update(self: *Self, dt: f64) !void {
+    _ = dt;
+    _ = self;
+}
 
 pub fn draw(self: Self, engine: *GameEngine) !void {
     // Render menu title

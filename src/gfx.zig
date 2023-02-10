@@ -12,23 +12,6 @@ const font_RubikMedium = @embedFile("./assets/fonts/RubikMedium-DRPE.ttf");
 /// 64x64 grass tile.
 pub const texture_grass = @embedFile("./assets/grass.png");
 pub const texture_cactus = @embedFile("./assets/cactus.png");
-//pub const AnimatedSprite = struct {
-//    sprites: std.StringHashMap([][:0]const u8),
-//    ally: std.mem.Allocator,
-//
-//    pub fn init(ally: std.mem.Allocator, sprites) !AnimatedSprite{
-//        var map = try sprites.init(ally);
-//
-//        self = AnimatedSprite{
-//            .ally =
-//        }
-//    }
-//
-//    pub fn next(self: AnimatedSprite, struct{ sprite_name: []const u8, curr_index: usize}) [:0]const u8 {
-//        const sprite = self.sprites[sprite_name];
-//        if(sprites)
-//    }
-//}
 
 pub const AssetError = error{
     AssetNotFound,
@@ -77,8 +60,6 @@ pub fn init(ally: std.mem.Allocator) !Self {
     std.log.info("{any}", .{@TypeOf(player_run)});
     var anims = std.StringHashMap([][:0]const u8).init(ally);
 
-    //anims.putAssumeCapacity("player_hurt", &it.*);
-
     try anims.put("player_hurt", &player_hurt);
     try anims.put("player_idle", &player_idle);
     try anims.put("player_run", &player_run);
@@ -91,6 +72,9 @@ pub fn init(ally: std.mem.Allocator) !Self {
     return gfx;
 }
 
+pub fn deinit(gfx: *Self) void {
+    gfx.animations.clearAndFree();
+}
 /// Create font texture for placement.
 pub fn font_texture_load(renderer: SDL.Renderer, font: *Ttf.Font, txt: [:0]const u8) !SDL.Texture {
     //var txt_surface = try txt_font.renderTextSolid(txt, SDL.Color.black);

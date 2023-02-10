@@ -13,12 +13,15 @@ pub const window_height = 720;
 window: SDL.Window,
 renderer: SDL.Renderer,
 
+//timestep: u32,
 allocator: std.mem.Allocator,
 state: SceneState,
 game_state: GameState,
 running: bool,
 gfx: Gfx,
 
+var now: f64 = 0; // @intToFloat(f64, SDL.getPerformanceCounter());
+var last: f64 = 0;
 const SceneState = enum {
     loading,
     menu,
@@ -42,9 +45,9 @@ const GameState = union(enum) {
         };
     }
 
-    fn update(gs: *GameState) !void {
-        return switch (gs) {
-            inline else => |*state| state.update(),
+    fn update(gs: *GameState, dt: f64) !void {
+        return switch (gs.*) {
+            inline else => |*state| state.update(dt),
         };
     }
 
@@ -97,7 +100,7 @@ pub fn deinit(engine: *Self) !void {
     defer Image.quit();
     defer SDL.ttf.quit();
     try engine.game_state.deinit(engine.renderer);
-    //engine.allocator.destroy(engine.gfx);
+    engine.gfx.deinit();
     engine.window.destroy();
     engine.renderer.destroy();
 }
@@ -131,8 +134,8 @@ pub fn handleEvents(self: *Self, event: SDL.Event) !void {
     };
 }
 
-pub fn update(engine: Self) !void {
-    try engine.game_state.update();
+pub fn update(engine: *Self, dt: f64) !void {
+    try engine.game_state.update(dt);
 }
 
 pub fn draw(self: *Self) !void {
