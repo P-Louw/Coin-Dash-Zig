@@ -10,20 +10,17 @@ const gfx = @import("gfx.zig");
 const Level = @This();
 
 score: u32,
-movement: u32 = 50,
+movement: u32 = 100,
 /// Array size of nr possible keysm, bool to show if active.
 keys: [350]bool,
 player_entity: GameEntity,
-obstacles: std.ArrayList(GameEntity), //[8]SDL.Rectangle, //std.ArrayList(GameEntity),
+obstacles: std.ArrayList(GameEntity),
 pickups: std.ArrayList(GameEntity),
 ally: std.mem.Allocator,
-//last_update_time: f64 = 0,
-//last_gfx_time: f64 = 0,
+rand: std.rand.Random,
+window_area_x: u32,
+window_area_y: u32,
 
-var prng = std.rand.DefaultPrng.init(1042);
-const rand = &prng.random();
-
-// TODO: extract player specific animation info.
 const AnimatedEntity = struct {
     animation_name: []const u8,
     animation_index: usize,
@@ -91,12 +88,13 @@ pub fn init(screen_width: u32, screen_height: u32) !Level {
     //
     var buf_obs = std.ArrayList(GameEntity).init(allocator); //try allocator.alloc(GameEntity, 8);
     var obs_i: usize = 0;
+    var prng = std.rand.DefaultPrng.init(1042);
+    var rng = &prng.random();
     while (obs_i < 9) : (obs_i += 1) {
         var a_obj = try allocator.create(GameEntity);
-        //std.log.info("Setting up a entity", .{});
         a_obj.* = GameEntity{
-            .x = rand.intRangeAtMost(u32, 0, screen_width - 50),
-            .y = rand.intRangeAtMost(u32, 0, screen_height - 50),
+            .x = rng.intRangeAtMost(u32, 0, screen_width - 50),
+            .y = rng.intRangeAtMost(u32, 0, screen_height - 50),
             .width = 50,
             .height = 50,
             .appearence = TextureData{
@@ -104,8 +102,8 @@ pub fn init(screen_width: u32, screen_height: u32) !Level {
             },
         };
         while (entityOverlapsOneOf(a_obj, buf_obs.items)) {
-            a_obj.x = rand.intRangeAtMost(u32, 0, screen_width - 50);
-            a_obj.y = rand.intRangeAtMost(u32, 0, screen_height - 50);
+            a_obj.x = rng.intRangeAtMost(u32, 0, screen_width - 50);
+            a_obj.y = rng.intRangeAtMost(u32, 0, screen_height - 50);
         }
         try buf_obs.append(a_obj.*);
     }
@@ -119,8 +117,8 @@ pub fn init(screen_width: u32, screen_height: u32) !Level {
     while (pick_i < 5) : (pick_i += 1) {
         var a_pickup = try allocator.create(GameEntity);
         a_pickup.* = GameEntity{
-            .x = rand.intRangeAtMost(u32, 0, screen_width - 50),
-            .y = rand.intRangeAtMost(u32, 0, screen_height - 50),
+            .x = rng.intRangeAtMost(u32, 0, screen_width - 50),
+            .y = rng.intRangeAtMost(u32, 0, screen_height - 50),
             .width = 50,
             .height = 50,
             .appearence = TextureData{
@@ -129,12 +127,12 @@ pub fn init(screen_width: u32, screen_height: u32) !Level {
         };
         // TODO: Extract collision of obstacles and pickups to function or store them together.
         while (entityOverlapsOneOf(a_pickup, buf_obs.items)) {
-            a_pickup.x = rand.intRangeAtMost(u32, 0, screen_width - 50);
-            a_pickup.y = rand.intRangeAtMost(u32, 0, screen_height - 50);
+            a_pickup.x = rng.intRangeAtMost(u32, 0, screen_width - 50);
+            a_pickup.y = rng.intRangeAtMost(u32, 0, screen_height - 50);
         }
         while (entityOverlapsOneOf(a_pickup, buf_pickup.items)) {
-            a_pickup.x = rand.intRangeAtMost(u32, 0, screen_width - 50);
-            a_pickup.y = rand.intRangeAtMost(u32, 0, screen_height - 50);
+            a_pickup.x = rng.intRangeAtMost(u32, 0, screen_width - 50);
+            a_pickup.y = rng.intRangeAtMost(u32, 0, screen_height - 50);
         }
         try buf_pickup.append(a_pickup.*);
     }
@@ -145,8 +143,8 @@ pub fn init(screen_width: u32, screen_height: u32) !Level {
     var new_player = try allocator.create(GameEntity);
     var anim_player = try AnimatedEntity.init(allocator, "player_idle");
     new_player.* = GameEntity{
-        .x = rand.intRangeAtMost(u32, 0, screen_width - 50),
-        .y = rand.intRangeAtMost(u32, 0, screen_height - 50),
+        .x = rng.intRangeAtMost(u32, 0, screen_width - 50),
+        .y = rng.intRangeAtMost(u32, 0, screen_height - 50),
         .width = 50,
         .height = 50,
         .appearence = TextureData{
@@ -154,8 +152,8 @@ pub fn init(screen_width: u32, screen_height: u32) !Level {
         },
     };
     while (entityOverlapsOneOf(new_player, buf_obs.items)) {
-        new_player.x = rand.intRangeAtMost(u32, 0, screen_width - 50);
-        new_player.y = rand.intRangeAtMost(u32, 0, screen_height - 50);
+        new_player.x = rng.intRangeAtMost(u32, 0, screen_width - 50);
+        new_player.y = rng.intRangeAtMost(u32, 0, screen_height - 50);
     }
 
     //
@@ -168,6 +166,9 @@ pub fn init(screen_width: u32, screen_height: u32) !Level {
         .pickups = buf_pickup,
         .ally = allocator,
         .keys = [_]bool{false} ** 350,
+        .rand = rng.*,
+        .window_area_x = screen_width,
+        .window_area_y = screen_height,
     };
     return it;
 }
@@ -206,13 +207,11 @@ pub fn deinit(self: Level, renderer: SDL.Renderer) !void {
 }
 
 pub fn handleEvents(self: *Level, engine: *GameEngine, event: SDL.Event) !void {
-    //std.log.info("Handle menu events.", .{});
     switch (event) {
         .quit => engine.running = false,
         .key_up => |key| {
             switch (key.scancode) {
                 .@"return" => {
-                    //std.log.info("Change state from menu", .{});
                     try engine.changeState(.playing);
                 },
                 // TODO: Should go to pause.
@@ -227,10 +226,6 @@ pub fn handleEvents(self: *Level, engine: *GameEngine, event: SDL.Event) !void {
             }
         },
         .key_down => |key| {
-            //if (key.is_repeat) {
-            //    std.log.info("This is a repeat", .{});
-            //    return;
-            //}
             self.keys[@enumToInt(key.scancode)] = true;
             switch (key.scancode) {
                 .up => {
@@ -254,50 +249,35 @@ pub fn handleEvents(self: *Level, engine: *GameEngine, event: SDL.Event) !void {
     }
 }
 pub fn update(self: *Level, dt: f64) !void {
-    //self.last_update_time += dt;
-    //
-    //if (self.last_update_time < 1.0) return;
-    //var change = @floatToInt(u32, self.last_update_time * @intToFloat(f64, self.movement));
-    //std.log.info("DELTA: {d}", .{dt});
-    //std.log.info("LAST TIME: {d}", .{self.last_update_time});
-    var change = @floatToInt(u32, dt * @intToFloat(f64, self.movement));
-    //std.log.info("CHANGE: {d}", .{change});
+    var change = @floatToInt(u32, (dt * 0.01) * @intToFloat(f64, self.movement));
     if (self.keys[@enumToInt(SDL.Scancode.up)]) {
-        //self.keys[@enumToInt(SDL.Scancode.up)] = false;
-        if (self.player_entity.y < self.movement) {
+        if (change > self.player_entity.y) {
             self.player_entity.y = 0;
         } else self.player_entity.y -= change;
     }
     if (self.keys[@enumToInt(SDL.Scancode.down)]) {
-        //self.keys[@enumToInt(SDL.Scancode.down)] = false;
-        if (self.player_entity.y + self.player_entity.height >= GameEngine.window_height) {
-            self.player_entity.y = GameEngine.window_height - self.player_entity.height;
+        if ((self.player_entity.y + self.player_entity.height) + change > self.window_area_y) {
+            self.player_entity.y = self.window_area_y - self.player_entity.height;
         } else self.player_entity.y += change;
     }
     if (self.keys[@enumToInt(SDL.Scancode.left)]) {
-        //self.keys[@enumToInt(SDL.Scancode.left)] = false;
-        if (self.player_entity.x < self.movement) {
+        if (change > self.player_entity.x) {
             self.player_entity.x = 0;
         } else self.player_entity.x -= change;
     }
     if (self.keys[@enumToInt(SDL.Scancode.right)]) {
-        //self.keys[@enumToInt(SDL.Scancode.right)] = false;
-        if (self.player_entity.x + self.player_entity.width >= GameEngine.window_width) {
-            self.player_entity.x = GameEngine.window_width - self.player_entity.width;
+        if ((self.player_entity.x + self.player_entity.width) + change > self.window_area_x) {
+            self.player_entity.x = self.window_area_x - self.player_entity.width;
         } else self.player_entity.x += change;
     }
-    //self.last_update_time = 0.0;
 }
 
 pub fn draw(self: *Level, engine: *GameEngine) !void {
     try self.drawBackground(engine.*);
-    //try level.drawObstacles(engine.*);
     try placeItems(engine.*, &self.obstacles);
     try placeItems(engine.*, &self.pickups);
     try self.drawPlayer(engine.*);
     try self.drawScore(engine);
-    engine.renderer.present();
-    //try engine.renderer.setColorRGB(0xF7, 0xA4, 0x1D);
 }
 
 fn placeItems(engine: GameEngine, entities: *std.ArrayList(GameEntity)) !void {
@@ -326,19 +306,6 @@ fn drawPlayer(self: *Level, engine: GameEngine) !void {
     }, null, 0, null, flipped);
 }
 
-fn drawObstacles(self: Level, engine: GameEngine) !void {
-    const cactus_img = try SDL.image.loadTextureMem(engine.renderer, gfx.texture_cactus[0..], SDL.image.ImgFormat.png);
-    defer cactus_img.destroy();
-    for (self.obstacles.items) |rect| {
-        try engine.renderer.copy(cactus_img, SDL.Rectangle{
-            .x = @intCast(c_int, rect.x),
-            .y = @intCast(c_int, rect.y),
-            .width = @intCast(c_int, rect.width),
-            .height = @intCast(c_int, rect.height),
-        }, null);
-    }
-}
-
 fn drawBackground(self: Level, engine: GameEngine) !void {
     const grass_img = try SDL.image.loadTextureMem(engine.renderer, gfx.texture_grass[0..], SDL.image.ImgFormat.png);
     defer grass_img.destroy();
@@ -364,7 +331,6 @@ fn drawBackground(self: Level, engine: GameEngine) !void {
 }
 
 fn drawScore(self: Level, engine: *GameEngine) !void {
-    //std.log.info("Drawing score!", .{});
     var score_buff: [46]u8 = undefined;
     const score_str = try std.fmt.bufPrintZ(&score_buff, "{d}", .{self.score});
     var txt_texture = try gfx.font_texture_load(engine.renderer, &engine.gfx.fontTitle, score_str);
