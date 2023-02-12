@@ -1,7 +1,6 @@
 const std = @import("std");
 const SDL = @import("sdl2-zig");
 const SDLC = @import("sdl2-native");
-const utils = @import("utils.zig");
 const Image = SDL.image;
 const Ttf = SDL.ttf;
 const GameEngine = @import("engine.zig");
@@ -189,7 +188,7 @@ fn entityOverlapsOneOf(placed: *GameEntity, others: []GameEntity) bool {
             .width = @intCast(c_int, obj.width),
             .height = @intCast(c_int, obj.height),
         };
-        if (utils.hasIntersection(&other, &rect)) {
+        if (other.hasIntersection(rect)) {
             return true;
         }
     }
