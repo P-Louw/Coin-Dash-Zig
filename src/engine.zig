@@ -41,13 +41,15 @@ const GameState = union(enum) {
 
     fn deinit(gs: GameState, renderer: SDL.Renderer) !void {
         return switch (gs) {
-            inline else => |state| state.deinit(renderer),
+            inline else => |state| {
+                try state.deinit(renderer);
+            },
         };
     }
 
-    fn update(gs: *GameState, dt: f64) !void {
+    fn update(gs: *GameState, runstate: *bool, dt: f64) !void {
         return switch (gs.*) {
-            inline else => |*state| state.update(dt),
+            inline else => |*state| state.update(runstate, dt),
         };
     }
 
@@ -96,6 +98,7 @@ pub fn init(ally: std.mem.Allocator) !Self {
 }
 
 pub fn deinit(engine: *Self) !void {
+    std.log.info("Called engine deinit", .{});
     defer SDL.quit();
     defer Image.quit();
     defer SDL.ttf.quit();
@@ -135,7 +138,7 @@ pub fn handleEvents(self: *Self, event: SDL.Event) !void {
 }
 
 pub fn update(engine: *Self, dt: f64) !void {
-    try engine.game_state.update(dt);
+    try engine.game_state.update(&engine.running, dt);
 }
 
 pub fn draw(self: *Self) !void {
@@ -144,4 +147,7 @@ pub fn draw(self: *Self) !void {
     self.renderer.present();
 }
 
-pub fn quit() !void {}
+pub fn quit(engine: *Self) !void {
+    std.log.info("Quit game", .{});
+    try engine.deinit();
+}

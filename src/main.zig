@@ -24,11 +24,11 @@ pub fn main() anyerror!void {
         while (SDL.pollEvent()) |ev| {
             try engine.handleEvents(ev);
         }
-        var dt = @intToFloat(f64, time - last) / 1000.0;
+        var dt = @intToFloat(f64, (time - last)) / 1000.0;
         try engine.update(dt);
         try engine.draw();
-        time = last;
-        //SDL.delay(5);
+        last = time;
+        SDL.delay(10);
     }
     try engine.deinit();
 }

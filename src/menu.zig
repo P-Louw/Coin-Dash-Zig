@@ -61,7 +61,8 @@ pub fn handleEvents(self: Self, engine: *GameEngine, event: SDL.Event) !void {
         else => {},
     }
 }
-pub fn update(self: *Self, dt: f64) !void {
+pub fn update(self: *Self, runstate: *bool, dt: f64) !void {
+    _ = runstate;
     _ = dt;
     _ = self;
 }
