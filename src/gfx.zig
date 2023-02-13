@@ -52,6 +52,19 @@ pub var coins = [_][:0]const u8{
     @embedFile("./assets/coin/coin-frame-11.png"),
 };
 
+pub var powerup = [_][:0]const u8{
+    @embedFile("./assets/powerup/pow-frame-1.png"),
+    @embedFile("./assets/powerup/pow-frame-2.png"),
+    @embedFile("./assets/powerup/pow-frame-3.png"),
+    @embedFile("./assets/powerup/pow-frame-4.png"),
+    @embedFile("./assets/powerup/pow-frame-5.png"),
+    @embedFile("./assets/powerup/pow-frame-6.png"),
+    @embedFile("./assets/powerup/pow-frame-7.png"),
+    @embedFile("./assets/powerup/pow-frame-8.png"),
+    @embedFile("./assets/powerup/pow-frame-9.png"),
+    @embedFile("./assets/powerup/pow-frame-10.png"),
+};
+
 fontTitle: Ttf.Font,
 fontDialogue: Ttf.Font,
 animations: std.StringHashMap([][:0]const u8),
@@ -64,6 +77,7 @@ pub fn init(ally: std.mem.Allocator) !Self {
     try anims.put("player_idle", &player_idle);
     try anims.put("player_run", &player_run);
     try anims.put("coin", &coins);
+    try anims.put("powerup", &powerup);
     var gfx = Self{
         .fontTitle = try Ttf.openFontMem(font_Terrablox, true, 46),
         .fontDialogue = try Ttf.openFontMem(font_RubikMedium, true, 12),

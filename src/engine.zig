@@ -130,7 +130,7 @@ pub fn changeState(engine: *Self, next_state: SceneState) !void {
 }
 
 pub fn handleEvents(self: *Self, event: SDL.Event) !void {
-    std.log.info("Engine state: {s}", .{@tagName(self.state)});
+    //std.log.info("Engine state: {s}", .{@tagName(self.state)});
     try switch (event) {
         .quit => self.running = false,
         else => self.game_state.handleEvents(self, event),
